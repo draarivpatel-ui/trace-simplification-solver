@@ -5,7 +5,7 @@ import { TraceSimplificationSolver } from "../../index"
 import inputRoute from "../fixtures/orangecrab-start-via.json"
 import pads from "../fixtures/orangecrab-start-via-pads.json"
 
-test("reproduces the lost start via from OrangeCrab phase 1", async (): Promise<void> => {
+test("preserves the start via from OrangeCrab phase 1", async (): Promise<void> => {
   const original = structuredClone(inputRoute)
   const solver = new TraceSimplificationSolver({
     hdRoutes: [structuredClone(inputRoute)],
@@ -28,7 +28,7 @@ test("reproduces the lost start via from OrangeCrab phase 1", async (): Promise<
   expect(result!.route.at(-1)).toEqual(inputRoute.route.at(-1))
   expect(result!.route.some((point) => point.z === 0)).toBe(true)
   expect(result!.route.some((point) => point.z === 5)).toBe(true)
-  expect(result!.vias).toHaveLength(0)
+  expect(result!.vias).toHaveLength(1)
   expect(inputRoute).toEqual(original)
   const graphics = solver.visualize()
   graphics.title = `OrangeCrab GND escape: ${result!.vias.length} vias; top red, bottom blue`

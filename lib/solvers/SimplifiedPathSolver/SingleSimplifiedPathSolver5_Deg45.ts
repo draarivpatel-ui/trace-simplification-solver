@@ -392,8 +392,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       const end = this.inputRoute.route[i + 1]
 
       // Calculate segment length using Euclidean distance
-      const length =
-        Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) + i / 10000
+      // Coincident via anchors still need a distinct sampling interval so
+      // advancing onto the entering layer cannot revisit the same transition.
+      const length = Math.max(
+        Number.EPSILON,
+        Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) + i / 10000,
+      )
 
       this.pathSegments.push({
         start,
@@ -841,7 +845,8 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
     // If there's a layer change, handle it
     // Inside the _step method, within the layer change handling block:
-    if (layerChangeBtwHeadAndTail && layerChangeAtDistance > 0) {
+    // A route can start at a via, so its first layer change is at distance 0.
+    if (layerChangeBtwHeadAndTail && layerChangeAtDistance >= 0) {
       const connectorStartDistance = this.lastValidPath
         ? this.lastValidPathHeadDistance
         : this.tailDistanceAlongPath
