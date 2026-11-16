@@ -25,6 +25,11 @@ export interface SameNetViaMergerSolverInput {
   outline?: Array<{ x: number; y: number }>
   /** Prevent transition clusters that touch a route endpoint from moving. */
   preserveRouteEndpoints?: boolean
+  /**
+   * Validate incident edges for near merges. Off by default for callers that
+   * validate the complete proposal.
+   */
+  validateIncidentSegmentsForNearMerges?: boolean
 }
 
 type Via = {
@@ -35,6 +40,12 @@ type Via = {
   routeIndex: number
   layers: number[]
   mutable: boolean
+}
+
+type ViaMoveSegment = {
+  start: HighDensityRoute["route"][number]
+  end: HighDensityRoute["route"][number]
+  traceThickness: number
 }
 
 const NEAR_VIA_MERGE_DISTANCE_MULTIPLIER = 2.5
@@ -120,6 +131,43 @@ const obstacleIsSameNet = (
   return false
 }
 
+const getViaTransitionPointIndexes = (
+  route: HighDensityRoute["route"],
+  via: Pick<Via, "x" | "y">,
+): Set<number> => {
+  const indexes = new Set<number>()
+  for (let j = route.length - 1; j >= 1; j--) {
+    const prev = route[j - 1]
+    const curr = route[j]
+    if (prev.z === curr.z) continue
+    if (prev.x !== via.x || prev.y !== via.y) continue
+    if (curr.x !== via.x || curr.y !== via.y) continue
+
+    let clusterStartIndex = j - 1
+    while (
+      clusterStartIndex > 0 &&
+      route[clusterStartIndex - 1]!.x === via.x &&
+      route[clusterStartIndex - 1]!.y === via.y
+    ) {
+      clusterStartIndex--
+    }
+
+    let clusterEndIndex = j
+    while (
+      clusterEndIndex < route.length - 1 &&
+      route[clusterEndIndex + 1]!.x === via.x &&
+      route[clusterEndIndex + 1]!.y === via.y
+    ) {
+      clusterEndIndex++
+    }
+
+    for (let k = clusterStartIndex; k <= clusterEndIndex; k++) {
+      indexes.add(k)
+    }
+  }
+  return indexes
+}
+
 const canMoveViaTo = (
   viaToRemove: Via,
   viaKeep: Via,
@@ -129,6 +177,7 @@ const canMoveViaTo = (
     hdRouteSHI: HighDensityRouteSpatialIndex
     obstacleSHI: ObstacleSpatialHashIndex
     netByConnectionName?: ReadonlyMap<string, string>
+    validateIncidentSegmentsForNearMerges?: boolean
   },
 ): boolean => {
   const route = context.mergedViaHdRoutes[viaToRemove.routeIndex]
@@ -138,29 +187,55 @@ const canMoveViaTo = (
     )
   }
 
-  const transitionLayers = new Set<number>()
-  for (let i = 1; i < route.route.length; i++) {
-    const prev = route.route[i - 1]
-    const curr = route.route[i]
-    if (prev.z === curr.z) continue
-    if (prev.x !== viaToRemove.x || prev.y !== viaToRemove.y) continue
-    if (curr.x !== viaToRemove.x || curr.y !== viaToRemove.y) continue
-
-    transitionLayers.add(prev.z)
-    transitionLayers.add(curr.z)
+  const segments: ViaMoveSegment[] = []
+  if (context.validateIncidentSegmentsForNearMerges) {
+    const pointIndexes = getViaTransitionPointIndexes(route.route, viaToRemove)
+    if (pointIndexes.size === 0) {
+      throw new Error(
+        `SameNetViaMergerSolver could not find transition layers for via at (${viaToRemove.x}, ${viaToRemove.y})`,
+      )
+    }
+    for (let i = 1; i < route.route.length; i++) {
+      const previous = route.route[i - 1]
+      const current = route.route[i]
+      if (previous.z !== current.z) continue
+      if (!pointIndexes.has(i - 1) && !pointIndexes.has(i)) continue
+      segments.push({
+        start: pointIndexes.has(i - 1)
+          ? { ...previous, x: viaKeep.x, y: viaKeep.y }
+          : previous,
+        end: pointIndexes.has(i)
+          ? { ...current, x: viaKeep.x, y: viaKeep.y }
+          : current,
+        traceThickness: previous.traceThickness ?? route.traceThickness,
+      })
+    }
+  } else {
+    const transitionLayers = new Set<number>()
+    for (let i = 1; i < route.route.length; i++) {
+      const previous = route.route[i - 1]
+      const current = route.route[i]
+      if (previous.z === current.z) continue
+      if (previous.x !== viaToRemove.x || previous.y !== viaToRemove.y) continue
+      if (current.x !== viaToRemove.x || current.y !== viaToRemove.y) continue
+      transitionLayers.add(previous.z)
+      transitionLayers.add(current.z)
+    }
+    if (transitionLayers.size === 0) {
+      throw new Error(
+        `SameNetViaMergerSolver could not find transition layers for via at (${viaToRemove.x}, ${viaToRemove.y})`,
+      )
+    }
+    for (const z of transitionLayers) {
+      segments.push({
+        start: { x: viaToRemove.x, y: viaToRemove.y, z },
+        end: { x: viaKeep.x, y: viaKeep.y, z },
+        traceThickness: route.traceThickness,
+      })
+    }
   }
 
-  if (transitionLayers.size === 0) {
-    throw new Error(
-      `SameNetViaMergerSolver could not find transition layers for via at (${viaToRemove.x}, ${viaToRemove.y})`,
-    )
-  }
-
-  for (const z of transitionLayers) {
-    const traceThickness = route.traceThickness
-    const start = { x: viaToRemove.x, y: viaToRemove.y, z }
-    const end = { x: viaKeep.x, y: viaKeep.y, z }
-
+  for (const { start, end, traceThickness } of segments) {
     if (start.x === end.x && start.y === end.y) continue
 
     const conflictingRoutes = context.hdRouteSHI.getConflictingRoutesForSegment(
@@ -168,7 +243,6 @@ const canMoveViaTo = (
       end,
       traceThickness / 2,
     )
-
     for (const { conflictingRoute, distance } of conflictingRoutes) {
       if (conflictingRoute.connectionName === route.connectionName) continue
       if (
@@ -182,7 +256,11 @@ const canMoveViaTo = (
 
       const minDistance =
         traceThickness / 2 + conflictingRoute.traceThickness / 2
-      if (distance < minDistance) return false
+      if (
+        context.validateIncidentSegmentsForNearMerges ||
+        distance < minDistance
+      )
+        return false
     }
 
     const segmentBox = {
@@ -205,7 +283,7 @@ const canMoveViaTo = (
           `SameNetViaMergerSolver found obstacle without zLayers near via at (${viaToRemove.x}, ${viaToRemove.y})`,
         )
       }
-      if (!obstacle.__zLayers.includes(z)) continue
+      if (!obstacle.__zLayers.includes(start.z)) continue
       if (obstacleIsSameNet(context.connMap, obstacle, viaToRemove)) continue
       if (segmentToBoxMinDistance(start, end, obstacle) < searchMargin) {
         return false
@@ -426,6 +504,8 @@ export class SameNetViaMergerSolver extends BaseSolver {
                   hdRouteSHI: this.hdRouteSHI,
                   obstacleSHI: this.obstacleSHI,
                   netByConnectionName: this.netByConnectionName,
+                  validateIncidentSegmentsForNearMerges:
+                    this.input.validateIncidentSegmentsForNearMerges,
                 })
               ) {
                 remove.push(candidate)
@@ -499,38 +579,11 @@ export class SameNetViaMergerSolver extends BaseSolver {
     }
 
     const route = routeToUpdate.route
-    const routePointIndexesToMove = new Set<number>()
+    const routePointIndexesToMove = getViaTransitionPointIndexes(
+      route,
+      viaToRemove,
+    )
     let replacedVia = false
-
-    for (let j = route.length - 1; j >= 1; j--) {
-      const prev = route[j - 1]
-      const curr = route[j]
-      if (prev.z === curr.z) continue
-      if (prev.x !== viaToRemove.x || prev.y !== viaToRemove.y) continue
-      if (curr.x !== viaToRemove.x || curr.y !== viaToRemove.y) continue
-
-      let clusterStartIndex = j - 1
-      while (
-        clusterStartIndex > 0 &&
-        route[clusterStartIndex - 1]!.x === viaToRemove.x &&
-        route[clusterStartIndex - 1]!.y === viaToRemove.y
-      ) {
-        clusterStartIndex--
-      }
-
-      let clusterEndIndex = j
-      while (
-        clusterEndIndex < route.length - 1 &&
-        route[clusterEndIndex + 1]!.x === viaToRemove.x &&
-        route[clusterEndIndex + 1]!.y === viaToRemove.y
-      ) {
-        clusterEndIndex++
-      }
-
-      for (let k = clusterStartIndex; k <= clusterEndIndex; k++) {
-        routePointIndexesToMove.add(k)
-      }
-    }
 
     if (routePointIndexesToMove.size === 0) {
       throw new Error(

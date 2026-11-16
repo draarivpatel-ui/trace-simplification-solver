@@ -1,3 +1,4 @@
+import { pointToSegmentDistance } from "@tscircuit/math-utils"
 import { expect, test } from "bun:test"
 import { ConnectivityMap } from "circuit-json-to-connectivity-map"
 import { getSvgFromGraphicsObject, type GraphicsObject } from "graphics-debug"
@@ -87,6 +88,25 @@ test("ButterStick A14 simplification beside A6 and RST", async (): Promise<void>
     ),
   )
   expect(sharedViaSites.size).toBe(1)
+
+  // The merger must check the redirected incident wires against full-stack vias.
+  for (const route of simplifiedRoutes) {
+    for (let i = 1; i < route.route.length; i++) {
+      const start = route.route[i - 1]!
+      const end = route.route[i]!
+      if (start.z !== end.z) continue
+      for (const foreignRoute of otherHdRoutes) {
+        for (const via of foreignRoute.vias) {
+          expect(
+            pointToSegmentDistance(via, start, end),
+          ).toBeGreaterThanOrEqual(
+            (start.traceThickness ?? route.traceThickness) / 2 +
+              foreignRoute.viaDiameter / 2,
+          )
+        }
+      }
+    }
+  }
 
   const styles: Record<string, { label: string; color: string; fill: string }> =
     {

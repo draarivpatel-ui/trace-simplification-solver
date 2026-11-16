@@ -417,6 +417,7 @@ export class TraceSimplificationSolver extends BaseSolver {
               : undefined,
             preserveRouteEndpoints:
               this.simplificationConfig.preserveRouteEndpoints,
+            validateIncidentSegmentsForNearMerges: true,
           })
           this.extractResult = (s) =>
             (s as SameNetViaMergerSolver).getMergedViaHdRoutes() ?? []
