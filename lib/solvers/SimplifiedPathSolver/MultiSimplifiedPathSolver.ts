@@ -27,6 +27,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   connMap: ConnectivityMap
   colorMap: Record<string, string>
   outline?: Array<{ x: number; y: number }>
+  minTraceToPadEdgeClearance?: number
+  minTraceToHoleEdgeClearance?: number
   minBoardEdgeClearance: number
   defaultViaDiameter: number
   useTraceWidthAwareClearance: boolean
@@ -41,6 +43,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     connMap?: ConnectivityMap
     colorMap?: Record<string, string>
     outline?: Array<{ x: number; y: number }>
+    minTraceToPadEdgeClearance?: number
+    minTraceToHoleEdgeClearance?: number
     minBoardEdgeClearance?: number
     defaultViaDiameter?: number
     useTraceWidthAwareClearance?: boolean
@@ -65,6 +69,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.connMap = params.connMap || new ConnectivityMap({})
     this.colorMap = params.colorMap || {}
     this.outline = params.outline
+    this.minTraceToPadEdgeClearance = params.minTraceToPadEdgeClearance
+    this.minTraceToHoleEdgeClearance = params.minTraceToHoleEdgeClearance
     this.minBoardEdgeClearance = params.minBoardEdgeClearance ?? 0.2
     this.defaultViaDiameter = params.defaultViaDiameter ?? 0.3
     this.useTraceWidthAwareClearance =
@@ -99,6 +105,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         connMap: this.connMap,
         colorMap: this.colorMap,
         outline: this.outline,
+        minTraceToPadEdgeClearance: this.minTraceToPadEdgeClearance,
+        minTraceToHoleEdgeClearance: this.minTraceToHoleEdgeClearance,
         minBoardEdgeClearance: this.minBoardEdgeClearance,
         useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
         geometryQuery: {
@@ -128,6 +136,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
           connMap: this.connMap,
           colorMap: this.colorMap,
           outline: this.outline,
+          minTraceToPadEdgeClearance: this.minTraceToPadEdgeClearance,
+          minTraceToHoleEdgeClearance: this.minTraceToHoleEdgeClearance,
           minBoardEdgeClearance: this.minBoardEdgeClearance,
           useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
           geometryQuery: {
