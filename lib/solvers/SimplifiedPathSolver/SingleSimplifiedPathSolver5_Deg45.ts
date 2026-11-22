@@ -480,7 +480,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       }
 
       const distToObstacle =
-        obstacle.shape === "circle" && obstacle.width === obstacle.height
+        obstacle.isNonPlatedHole &&
+        obstacle.shape === "circle" &&
+        obstacle.width === obstacle.height
           ? pointToSegmentDistance(obstacle.center, start, end) -
             obstacle.width / 2
           : segmentToBoxMinDistance(start, end, obstacle)
