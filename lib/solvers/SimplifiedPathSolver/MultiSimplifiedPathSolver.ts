@@ -5,7 +5,6 @@ import { HighDensityIntraNodeRoute } from "../../types/high-density-types"
 import { combineVisualizations } from "../../utils/combineVisualizations"
 import { createObjectsWithZLayers } from "../../utils/createObjectsWithZLayers"
 import { BaseSolver } from "../BaseSolver"
-import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
 import { PathSimplificationGeometryIndex } from "../../data-structures/PathSimplificationGeometryIndex"
@@ -19,7 +18,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
 
   currentUnsimplifiedHdRouteIndex = 0
 
-  activeSubSolver: SingleSimplifiedPathSolver | null = null
+  activeSubSolver: SingleSimplifiedPathSolver5 | null = null
 
   unsimplifiedHdRoutes: HighDensityIntraNodeRoute[]
   otherHdRoutes: ReadonlyArray<HighDensityIntraNodeRoute>
@@ -31,8 +30,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   minTraceToHoleEdgeClearance?: number
   minBoardEdgeClearance: number
   defaultViaDiameter: number
-  useTraceWidthAwareClearance: boolean
-  enableVertexShortcuts: boolean
+  useTraceWidthAwareClearance?: boolean
+  enableVertexShortcuts?: boolean
   private readonly geometryIndex: PathSimplificationGeometryIndex
 
   constructor(params: {
@@ -73,9 +72,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.minTraceToHoleEdgeClearance = params.minTraceToHoleEdgeClearance
     this.minBoardEdgeClearance = params.minBoardEdgeClearance ?? 0.2
     this.defaultViaDiameter = params.defaultViaDiameter ?? 0.3
-    this.useTraceWidthAwareClearance =
-      params.useTraceWidthAwareClearance ?? false
-    this.enableVertexShortcuts = params.enableVertexShortcuts ?? false
+    this.useTraceWidthAwareClearance = params.useTraceWidthAwareClearance
+    this.enableVertexShortcuts = params.enableVertexShortcuts
     this.geometryIndex = new PathSimplificationGeometryIndex(
       this.unsimplifiedHdRoutes,
       this.otherHdRoutes,
@@ -125,9 +123,13 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
       return
     }
     if (this.activeSubSolver.solved) {
+      // A blocked sampling step can copy several untouched bends. Look for
+      // shorter legal paths between those vertices under the board clearance.
       if (
-        this.enableVertexShortcuts &&
-        !(this.activeSubSolver instanceof VertexShortcutPathSolver)
+        !(this.activeSubSolver instanceof VertexShortcutPathSolver) &&
+        (this.enableVertexShortcuts ??
+          (this.minTraceToPadEdgeClearance !== undefined &&
+            this.activeSubSolver.keptOriginalSegments))
       ) {
         this.activeSubSolver = new VertexShortcutPathSolver({
           inputRoute: this.activeSubSolver.simplifiedRoute,

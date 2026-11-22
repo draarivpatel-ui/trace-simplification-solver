@@ -75,3 +75,30 @@ test("shortcut lookup includes traces within the board clearance across grid cel
     false,
   )
 })
+
+test("a thin trace can straighten past a pad when its copper clears the declared gap", () => {
+  // The near edge of the pad is 0.26 mm above the shortcut. The legal
+  // copper gap is 0.21 mm with a 0.10 mm trace, and 0.18 mm with 0.16 mm.
+  for (const traceThickness of [0.1, 0.16]) {
+    const solver = new MultiSimplifiedPathSolver({
+      unsimplifiedHdRoutes: [{ ...signal, traceThickness }],
+      obstacles: [
+        {
+          type: "rect",
+          center: { x: 0, y: 0.76 },
+          width: 1,
+          height: 1,
+          layers: ["top"],
+          connectedTo: [],
+        },
+      ],
+      minTraceToPadEdgeClearance: 0.2,
+    })
+    solver.solve()
+    expect(solver.solved).toBe(true)
+    const points = solver.simplifiedHdRoutes[0]!.route
+    expect(points.every((p) => Math.abs(p.y) < 1e-9)).toBe(
+      traceThickness === 0.1,
+    )
+  }
+})

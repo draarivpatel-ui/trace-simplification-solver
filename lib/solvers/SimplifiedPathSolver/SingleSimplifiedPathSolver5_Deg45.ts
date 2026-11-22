@@ -42,6 +42,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   private headDistanceAlongPath: number = 0
   private tailDistanceAlongPath: number = 0
   private minStepSize: number = 0.25 // Default step size, can be adjusted
+  keptOriginalSegments = false
   private lastValidPath: Point[] | null = null // Store the current valid path
   private lastValidPathHeadDistance: number = 0
 
@@ -111,8 +112,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
     this.OBSTACLE_MARGIN = params.minTraceToPadEdgeClearance ?? 0.1
     this.cachedValidPathSegments = new Set()
+    // A board-specified edge gap is measured from the actual copper edges.
     this.useTraceWidthAwareClearance =
-      params.useTraceWidthAwareClearance ?? false
+      params.useTraceWidthAwareClearance ??
+      params.minTraceToPadEdgeClearance !== undefined
     this.clearanceTraceThickness = this.useTraceWidthAwareClearance
       ? this.inputRoute.traceThickness
       : this.TRACE_THICKNESS
@@ -140,17 +143,23 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       },
       { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
     )
-    const maximumOtherTraceThickness = this.useTraceWidthAwareClearance
-      ? Math.max(
-          0,
-          ...this.otherHdRoutes.flatMap((route) => [
-            route.traceThickness,
-            ...route.route.map(
-              (point) => point.traceThickness ?? route.traceThickness,
-            ),
-          ]),
+    let maximumOtherTraceThickness = 0
+    if (this.useTraceWidthAwareClearance) {
+      for (const peer of this.otherHdRoutes) {
+        maximumOtherTraceThickness = Math.max(
+          maximumOtherTraceThickness,
+          peer.traceThickness,
         )
-      : this.TRACE_THICKNESS
+        for (const point of peer.route) {
+          if (point.traceThickness !== undefined) {
+            maximumOtherTraceThickness = Math.max(
+              maximumOtherTraceThickness,
+              point.traceThickness,
+            )
+          }
+        }
+      }
+    }
     const routeSegmentMargin = this.useTraceWidthAwareClearance
       ? this.OBSTACLE_MARGIN +
         this.clearanceTraceThickness / 2 +
@@ -706,6 +715,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         continue
       }
 
+      this.keptOriginalSegments = true
       this.newRoute.push({ ...originalPoint })
     }
   }
@@ -1036,6 +1046,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         !this.arePointsEqual(oldTailPoint, newTailPoint) &&
         !this.arePointsEqual(newTailPoint, lastRoutePoint)
       ) {
+        this.keptOriginalSegments = true
         this.newRoute.push(newTailPoint)
         // Start the next validated path at the vertex appended above.
         this.tailDistanceAlongPath =

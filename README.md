@@ -91,8 +91,8 @@ The exported `TraceSimplificationSolverOptions` type describes the constructor o
 | `enableCrossingViaReduction` | Enable crossing layer swaps and local obstacle-detour shortcuts on later via-removal passes; off by default. |
 | `preserveRouteEndpoints` | Preserve each route's start/end coordinates and layers; off by default. Requires nonempty routes with unique connection names. |
 | `netByConnectionName` | `ReadonlyMap<string, string>` providing explicit net identities for via merging, useful for synthetic connection names. |
-| `useTraceWidthAwareClearance` | Use actual segment widths for path-simplification clearance checks; off by default. |
-| `enableVertexShortcuts` | Run vertex cleanup after path sampling; off by default. |
+| `useTraceWidthAwareClearance` | Use actual copper widths for path-simplification clearance checks. Defaults to true when the caller supplies a copper edge clearance. |
+| `enableVertexShortcuts` | Search existing vertices for shorter legal paths after sampling. With a declared copper clearance, the default retries routes where blocked shortcuts retained original segments. |
 | `terminalLayerIndicesByPcbPortId` | Map PCB-port IDs to sets of physical layer indices on which the terminal can accept an endpoint without a via. |
 
 To change the number of pipeline passes, set `solver.MAX_SIMPLIFICATION_PIPELINE_LOOPS` before solving. This is separate from the step limit, `solver.MAX_ITERATIONS`.
