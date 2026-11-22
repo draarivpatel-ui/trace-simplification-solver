@@ -123,13 +123,14 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
       return
     }
     if (this.activeSubSolver.solved) {
-      // A blocked sampling step can copy several untouched bends. Look for
-      // shorter legal paths between those vertices under the board clearance.
+      // Retry retained bends when the board clearance ruled out a shortcut
+      // that the sampler would normally have accepted.
       if (
         !(this.activeSubSolver instanceof VertexShortcutPathSolver) &&
         (this.enableVertexShortcuts ??
           (this.minTraceToPadEdgeClearance !== undefined &&
-            this.activeSubSolver.keptOriginalSegments))
+            this.activeSubSolver.keptOriginalSegments &&
+            this.activeSubSolver.blockedByBoardClearance))
       ) {
         this.activeSubSolver = new VertexShortcutPathSolver({
           inputRoute: this.activeSubSolver.simplifiedRoute,

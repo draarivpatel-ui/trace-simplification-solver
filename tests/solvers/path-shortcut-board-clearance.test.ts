@@ -102,3 +102,40 @@ test("a thin trace can straighten past a pad when its copper clears the declared
     )
   }
 })
+
+test("restating an already satisfied board gap preserves normal shortcut spacing", () => {
+  const route = { ...signal, traceThickness: 0.1 }
+  const params = {
+    inputRoute: route,
+    otherHdRoutes: [],
+    connMap: new ConnectivityMap({}),
+    colorMap: {},
+    obstacles: [
+      {
+        type: "rect" as const,
+        center: { x: 0, y: 0.66 },
+        width: 1,
+        height: 1,
+        __zLayers: [0],
+        layers: ["top"],
+        connectedTo: [],
+      },
+    ],
+  }
+  const acceptsShortcut = (options: {
+    minTraceToPadEdgeClearance?: number
+    useTraceWidthAwareClearance?: boolean
+  }) =>
+    new SingleSimplifiedPathSolver5({
+      ...params,
+      ...options,
+    }).isValidPathSegment(route.route[0]!, route.route[3]!)
+  expect(acceptsShortcut({})).toBe(false)
+  expect(acceptsShortcut({ minTraceToPadEdgeClearance: 0.1 })).toBe(false)
+  expect(
+    acceptsShortcut({
+      minTraceToPadEdgeClearance: 0.1,
+      useTraceWidthAwareClearance: true,
+    }),
+  ).toBe(true)
+})
