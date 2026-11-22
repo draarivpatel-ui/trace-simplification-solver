@@ -12,6 +12,7 @@ test("diagonal shortcuts measure clearance to a hole's circular edge", () => {
         {
           type: "rect",
           shape,
+          isNonPlatedHole: true,
           center: { x: 0, y: 0 },
           width: 2,
           height: 2,
