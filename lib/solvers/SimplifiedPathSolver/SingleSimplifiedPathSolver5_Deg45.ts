@@ -113,9 +113,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     this.holeMargin = params.minTraceToHoleEdgeClearance ?? this.OBSTACLE_MARGIN
     this.cachedValidPathSegments = new Set()
     this.useTraceWidthAwareClearance =
-      params.useTraceWidthAwareClearance === true ||
-      params.minTraceToPadEdgeClearance !== undefined ||
-      params.minTraceToHoleEdgeClearance !== undefined
+      params.useTraceWidthAwareClearance ?? false
     this.clearanceTraceThickness = this.useTraceWidthAwareClearance
       ? this.inputRoute.traceThickness
       : this.TRACE_THICKNESS
