@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test"
+import { ConnectivityMap } from "circuit-json-to-connectivity-map"
+import { SingleSimplifiedPathSolver5 } from "../../lib/solvers/SimplifiedPathSolver/SingleSimplifiedPathSolver5_Deg45"
 import { minimumDistanceBetweenSegments } from "../../lib/utils/minimumDistanceBetweenSegments"
 import { MultiSimplifiedPathSolver } from "../../lib/solvers/SimplifiedPathSolver/MultiSimplifiedPathSolver"
 import type { HighDensityRoute } from "../../lib/types/high-density-types"
@@ -49,4 +51,27 @@ test("simplifying a legal detour preserves copper-to-copper clearance", () => {
     ) -
     (signal.traceThickness + other.traceThickness) / 2
   expect(gap).toBeGreaterThanOrEqual(0.14)
+})
+
+test("shortcut lookup includes traces within the board clearance across grid cells", () => {
+  const solver = new SingleSimplifiedPathSolver5({
+    inputRoute: signal,
+    otherHdRoutes: [
+      {
+        ...signal,
+        connectionName: "other",
+        route: [
+          { x: -1, y: 1, z: 0 },
+          { x: 1, y: 1, z: 0 },
+        ],
+      },
+    ],
+    obstacles: [],
+    connMap: new ConnectivityMap({}),
+    colorMap: {},
+    minTraceToPadEdgeClearance: 0.9,
+  })
+  expect(solver.isValidPathSegment(signal.route[0]!, signal.route[3]!)).toBe(
+    false,
+  )
 })

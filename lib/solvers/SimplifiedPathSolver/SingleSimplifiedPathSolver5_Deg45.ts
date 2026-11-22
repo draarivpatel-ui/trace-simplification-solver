@@ -220,6 +220,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         return false
       })
 
+    const minSegmentX = bounds.minX - routeSegmentMargin
+    const maxSegmentX = bounds.maxX + routeSegmentMargin
+    const minSegmentY = bounds.minY - routeSegmentMargin
+    const maxSegmentY = bounds.maxY + routeSegmentMargin
     this.filteredObstaclePathSegments = candidateRoutes.flatMap((hdRoute) => {
       if (this.isSameNetRoute(hdRoute)) {
         return []
@@ -232,11 +236,19 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         const end = route[i + 1]
 
         if (
+          Math.max(start.x, end.x) < minSegmentX ||
+          Math.min(start.x, end.x) > maxSegmentX ||
+          Math.max(start.y, end.y) < minSegmentY ||
+          Math.min(start.y, end.y) > maxSegmentY
+        ) {
+          continue
+        }
+        if (
           segmentToBoundsMinDistance(start, end, bounds) <= routeSegmentMargin
         ) {
           segments.push([start, end])
-          const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
           if (this.useTraceWidthAwareClearance) {
+            const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
             const segmentTraceThickness = Math.max(
               start.traceThickness ?? hdRoute.traceThickness,
               end.traceThickness ?? hdRoute.traceThickness,
@@ -254,9 +266,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
       return segments
     })
-    this.segmentTree = this.useTraceWidthAwareClearance
-      ? new SegmentTree(this.filteredObstaclePathSegments, routeSegmentMargin)
-      : new SegmentTree(this.filteredObstaclePathSegments)
+    this.segmentTree = new SegmentTree(
+      this.filteredObstaclePathSegments,
+      routeSegmentMargin,
+    )
 
     this.filteredVias = candidateRoutes.flatMap((hdRoute) => {
       if (this.isSameNetRoute(hdRoute)) {
@@ -482,9 +495,24 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
   // Check if a path segment is valid
   isValidPathSegment(start: Point, end: Point): boolean {
-    // Check if the segment intersects with any obstacle
+    const minX = Math.min(start.x, end.x)
+    const maxX = Math.max(start.x, end.x)
+    const minY = Math.min(start.y, end.y)
+    const maxY = Math.max(start.y, end.y)
     for (const obstacle of this.filteredObstacles) {
       if (!obstacle.__zLayers?.includes(start.z)) {
+        continue
+      }
+
+      const clearance = obstacle.isNonPlatedHole
+        ? this.holeCenterlineClearance
+        : this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+      if (
+        minX > obstacle.center.x + obstacle.width / 2 + clearance ||
+        maxX < obstacle.center.x - obstacle.width / 2 - clearance ||
+        minY > obstacle.center.y + obstacle.height / 2 + clearance ||
+        maxY < obstacle.center.y - obstacle.height / 2 - clearance
+      ) {
         continue
       }
 
@@ -497,12 +525,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
           : segmentToBoxMinDistance(start, end, obstacle)
 
       // Check if the line might intersect with this obstacle's borders
-      if (
-        distToObstacle <
-        (obstacle.isNonPlatedHole
-          ? this.holeCenterlineClearance
-          : this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2)
-      ) {
+      if (distToObstacle < clearance) {
         return false
       }
     }
@@ -511,35 +534,33 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     const segmentsThatCouldIntersect =
       this.segmentTree.getSegmentsThatCouldIntersect(start, end)
     for (const [otherSegA, otherSegB, segId] of segmentsThatCouldIntersect) {
-      // Only check intersection if we're on the same layer
-      if (otherSegA.z === start.z && otherSegB.z === start.z) {
-        const distBetweenSegments = minimumDistanceBetweenSegments(
-          { x: start.x, y: start.y },
-          { x: end.x, y: end.y },
-          { x: otherSegA.x, y: otherSegA.y },
-          { x: otherSegB.x, y: otherSegB.y },
-        )
-        if (!this.useTraceWidthAwareClearance) {
-          if (
-            distBetweenSegments <
-            this.OBSTACLE_MARGIN + this.TRACE_THICKNESS
-          ) {
-            return false
-          }
-          continue
-        }
+      if (otherSegA.z !== start.z || otherSegB.z !== start.z) continue
+
+      let clearance = this.OBSTACLE_MARGIN + this.TRACE_THICKNESS
+      if (this.useTraceWidthAwareClearance) {
         const otherTraceThickness =
           this.traceThicknessByObstacleSegmentId.get(segId)
         if (otherTraceThickness === undefined) {
           throw new Error(`Missing trace thickness for segment "${segId}"`)
         }
-        const requiredSeparation =
+        clearance =
           this.OBSTACLE_MARGIN +
           this.clearanceTraceThickness / 2 +
           otherTraceThickness / 2
-        if (distBetweenSegments < requiredSeparation) {
-          return false
-        }
+      }
+      if (
+        Math.max(otherSegA.x, otherSegB.x) < minX - clearance ||
+        Math.min(otherSegA.x, otherSegB.x) > maxX + clearance ||
+        Math.max(otherSegA.y, otherSegB.y) < minY - clearance ||
+        Math.min(otherSegA.y, otherSegB.y) > maxY + clearance
+      ) {
+        continue
+      }
+      if (
+        minimumDistanceBetweenSegments(start, end, otherSegA, otherSegB) <
+        clearance
+      ) {
+        return false
       }
     }
 
