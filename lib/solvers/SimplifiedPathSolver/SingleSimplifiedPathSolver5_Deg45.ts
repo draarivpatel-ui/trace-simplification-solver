@@ -70,6 +70,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   segmentTree!: SegmentTree
 
   OBSTACLE_MARGIN = 0.1
+  private readonly holeCenterlineClearance: number
   TRACE_THICKNESS = 0.15
   private useTraceWidthAwareClearance = false
   private clearanceTraceThickness = this.TRACE_THICKNESS
@@ -97,6 +98,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
   constructor(
     params: ConstructorParameters<typeof SingleSimplifiedPathSolver>[0] & {
+      minTraceToHoleEdgeClearance?: number
       useTraceWidthAwareClearance?: boolean
       geometryQuery?: {
         index: PathSimplificationGeometryIndex
@@ -112,6 +114,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     this.clearanceTraceThickness = this.useTraceWidthAwareClearance
       ? this.inputRoute.traceThickness
       : this.TRACE_THICKNESS
+
+    this.holeCenterlineClearance =
+      params.minTraceToHoleEdgeClearance === undefined
+        ? this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+        : params.minTraceToHoleEdgeClearance +
+          this.inputRoute.traceThickness / 2
 
     // Handle empty or single-point routes
     if (this.inputRoute.route.length <= 1) {
@@ -155,8 +163,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       height: bounds.maxY - bounds.minY,
     }
 
-    const obstacleMargin =
+    const copperObstacleMargin =
       this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+    const obstacleMargin = Math.max(
+      this.holeCenterlineClearance,
+      copperObstacleMargin,
+    )
     const candidateObstacles = params.geometryQuery
       ? params.geometryQuery.index.getCandidateObstacles(
           {
@@ -196,7 +208,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
         if (
           distance <
-          this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+          (obstacle.isNonPlatedHole
+            ? this.holeCenterlineClearance
+            : copperObstacleMargin)
         ) {
           return true
         }
@@ -483,7 +497,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       // Check if the line might intersect with this obstacle's borders
       if (
         distToObstacle <
-        this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+        (obstacle.isNonPlatedHole
+          ? this.holeCenterlineClearance
+          : this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2)
       ) {
         return false
       }
