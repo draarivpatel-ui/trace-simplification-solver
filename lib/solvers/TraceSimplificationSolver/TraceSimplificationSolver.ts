@@ -433,6 +433,8 @@ export class TraceSimplificationSolver extends BaseSolver {
             outline: this.simplificationConfig.outline
               ? [...this.simplificationConfig.outline]
               : undefined,
+            minTraceToPadEdgeClearance:
+              this.simplificationConfig.minTraceToPadEdgeClearance,
             minTraceToHoleEdgeClearance:
               this.simplificationConfig.minTraceToHoleEdgeClearance,
             minBoardEdgeClearance:
